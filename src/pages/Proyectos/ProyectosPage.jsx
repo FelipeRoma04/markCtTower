@@ -4,17 +4,60 @@ import { Filter } from 'lucide-react';
 
 export default function ProyectosPage() {
   const [proyectos, setProyectos] = useState([]);
+  const [clientes, setClientes] = useState([]);
   const [statusFilter, setStatusFilter] = useState('TODOS');
+  const [showModal, setShowModal] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [newProject, setNewProject] = useState({
+    code: '',
+    name: '',
+    clientId: '',
+    budgetHours: 0,
+    budgetMs: 0
+  });
+  
   const navigate = useNavigate();
 
+  const fetchData = async () => {
+    try {
+      const [pRes, cRes] = await Promise.all([
+        fetch('/api/projects'),
+        fetch('/api/clients')
+      ]);
+      const pData = await pRes.json();
+      const cData = await cRes.json();
+      if(Array.isArray(pData)) setProyectos(pData);
+      if(Array.isArray(cData)) setClientes(cData);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
-    fetch('/api/projects')
-      .then(res => res.json())
-      .then(data => {
-        if(Array.isArray(data)) setProyectos(data);
-      })
-      .catch(console.error);
+    fetchData();
   }, []);
+
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const res = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...newProject, status: 'EN PROCESO' })
+      });
+      const data = await res.json();
+      if(data.id) {
+        setProyectos([data, ...proyectos]);
+        setShowModal(false);
+        setNewProject({ code: '', name: '', clientId: '', budgetHours: 0, budgetMs: 0 });
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredProyectos = useMemo(() => {
     if (statusFilter === 'TODOS') return proyectos;
@@ -28,16 +71,55 @@ export default function ProyectosPage() {
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           <div className="card" style={{ padding: '8px 12px', margin: 0, display: 'flex', gap: 8, alignItems: 'center' }}>
             <Filter size={16} color="#64748B" />
-            <select className="input" style={{ border: 'none', background: 'transparent', padding: 0, fontWeight: 500, outline: 'none' }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+            <select className="input" style={{ border: 'none', background: 'transparent', padding: 0, font: 'inherit', fontWeight: 500 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
               <option value="TODOS">Todos los Estados</option>
               <option value="EN PROCESO">Activos (En Proceso)</option>
               <option value="EN PAUSA">En Pausa</option>
               <option value="CERRADO">Cerrados</option>
             </select>
           </div>
-          <button className="btn btn-outline">+ Nuevo Proyecto</button>
+          <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ Nuevo Proyecto</button>
         </div>
       </div>
+
+      {showModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="card" style={{ width: 420, padding: 32, position: 'relative', background: '#fff' }}>
+            <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 20 }}>Nuevo Proyecto</h3>
+            <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Código del Proyecto</label>
+                <input required className="input" style={{ width: '100%', padding: '10px 14px', border: '1px solid #CBD5E1', borderRadius: 8 }} placeholder="Ej. P-2024-001" value={newProject.code} onChange={e => setNewProject({...newProject, code: e.target.value})} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Nombre descriptivo</label>
+                <input required className="input" style={{ width: '100%', padding: '10px 14px', border: '1px solid #CBD5E1', borderRadius: 8 }} placeholder="Ej. Diseño Planta Sur" value={newProject.name} onChange={e => setNewProject({...newProject, name: e.target.value})} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Cliente Vinculado</label>
+                <select required className="input" style={{ width: '100%', padding: '10px 14px', border: '1px solid #CBD5E1', borderRadius: 8, background: '#fff' }} value={newProject.clientId} onChange={e => setNewProject({...newProject, clientId: e.target.value})}>
+                  <option value="">Seleccione un cliente...</option>
+                  {clientes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Horas Presup.</label>
+                  <input type="number" className="input" style={{ width: '100%', padding: '10px 14px', border: '1px solid #CBD5E1', borderRadius: 8 }} value={newProject.budgetHours} onChange={e => setNewProject({...newProject, budgetHours: Number(e.target.value)})} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Presupuesto (Ms)</label>
+                  <input type="number" step="0.01" className="input" style={{ width: '100%', padding: '10px 14px', border: '1px solid #CBD5E1', borderRadius: 8 }} value={newProject.budgetMs} onChange={e => setNewProject({...newProject, budgetMs: Number(e.target.value)})} />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={loading}>{loading ? 'Creando...' : 'Crear Proyecto'}</button>
+                <button type="button" className="btn btn-outline" onClick={() => setShowModal(false)}>Cancelar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       <div className="table-container">
         <table style={{ width: '100%' }}>
           <thead style={{ backgroundColor: '#EBEBEA' }}>

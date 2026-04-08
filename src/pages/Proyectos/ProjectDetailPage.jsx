@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, AlertTriangle, Clock, Target, DollarSign, Activity } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, Clock, Target, DollarSign, Activity, FileText, CheckCircle2, Calendar } from 'lucide-react';
 
 export default function ProjectDetailPage() {
   const { id } = useParams();
@@ -30,32 +30,28 @@ export default function ProjectDetailPage() {
     if (!project) return null;
     const tasks = project.tasks || [];
     const consumedHours = tasks.reduce((sum, t) => sum + t.hours, 0);
-    const budgetHours = project.budgetHours || 0;
+    const budgetHours = project.budgetHours || 1; // avoid div by zero
     const budgetMs = project.budgetMs || 0;
     
-    // Calculate progress based on tasks vs budget hours
-    const hourAdvance = budgetHours > 0 ? (consumedHours / budgetHours) * 100 : 0;
+    // Hour Burn rate
+    const hourAdvance = (consumedHours / budgetHours) * 100;
     
-    // Status-based progress (rough estimate)
-    let projectProgress = 0;
-    if (project.status === 'CERRADO') projectProgress = 100;
-    else if (project.status === 'EN PROCESO') projectProgress = 33; // Default starting point if not closed
-    
-    // If we have reports, we can refine progress
-    if (project.reports && project.reports.length > 0) {
-      const delivered = project.reports.filter(r => r.real && r.real !== '—').length;
-      projectProgress = Math.max(projectProgress, Math.round((delivered / project.reports.length) * 100));
-    }
+    // Project Progress based on reports delivered
+    const totalReports = project.reports?.length || 0;
+    const deliveredReports = project.reports?.filter(r => r.real && r.real !== '—').length || 0;
+    const progressPercent = totalReports > 0 ? (deliveredReports / totalReports) * 100 : 0;
 
-    const isBurning = hourAdvance > 80;
+    // Efficiency check: if hours consumed > progress percent, we have an efficiency leak
+    const efficiencyAlert = hourAdvance > progressPercent + 20 && project.status !== 'CERRADO';
 
     return { 
       consumedHours, 
       budgetHours, 
       budgetMs, 
       hourAdvance, 
-      projectProgress,
-      isBurning 
+      projectProgress: Math.round(progressPercent),
+      isBurning: hourAdvance > 80,
+      efficiencyAlert
     };
   }, [project]);
 
@@ -157,48 +153,93 @@ export default function ProjectDetailPage() {
         </div>
       </div>
 
+      {/* Gantt-lite Milestones Bar */}
+      <div className="card" style={{ padding: '20px', background: '#fff' }}>
+        <h3 style={{ fontSize: 12, fontWeight: 800, color: '#64748B', textTransform: 'uppercase', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Calendar size={14} /> Cronograma de Entregables Técnicos
+        </h3>
+        <div style={{ position: 'relative', height: 60, display: 'flex', alignItems: 'center', padding: '0 40px' }}>
+          {/* Horizontal Line */}
+          <div style={{ position: 'absolute', left: 40, right: 40, height: 4, background: '#F1F5F9', borderRadius: 2 }} />
+          
+          {processedReports.map((r, i) => {
+            // Estimate position based on index since we don't have hard project start/end dates for calculations yet
+            const pos = processedReports.length > 1 ? (i / (processedReports.length - 1)) * 100 : 50;
+            return (
+              <div key={i} style={{ position: 'absolute', left: `calc(${pos}% + 40px)`, transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 2 }}>
+                <div style={{ padding: '4px 8px', background: r.color, color: 'white', borderRadius: 6, fontSize: 10, fontWeight: 800, marginBottom: 8, whiteSpace: 'nowrap', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+                  {r.cod}
+                </div>
+                <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#fff', border: `3px solid ${r.color}` }} />
+                <div style={{ fontSize: 9, color: '#64748B', fontWeight: 600, marginTop: 4 }}>{r.prog}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: 24, alignItems: 'start' }}>
         
         {/* Timeline Section */}
         <div className="card" style={{ padding: '0', overflow: 'hidden', background: '#fff' }}>
-          <div style={{ padding: '20px', borderBottom: '1px solid #F1F5F9', background: '#F8FAFC' }}>
-            <h3 style={{ fontSize: 14, fontWeight: 800, color: '#0F172A', margin: 0 }}>CRONOGRAMA UNIFICADO</h3>
-            <p style={{ fontSize: 11, color: '#64748B', marginTop: 4 }}>Timesheets + Hitos de Reportes Técnicos</p>
+          <div style={{ padding: '20px', borderBottom: '1px solid #F1F5F9', background: '#F8FAFC', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <h3 style={{ fontSize: 14, fontWeight: 800, color: '#0F172A', margin: 0 }}>CRONOGRAMA DE EJECUCIÓN</h3>
+              <p style={{ fontSize: 11, color: '#64748B', marginTop: 4 }}>Seguimiento histórico de hitos y dedicación</p>
+            </div>
+            <div style={{ display: 'flex', gap: 12 }}>
+               <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, color: '#64748B' }}>
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#3B82F6' }} /> HORAS
+               </div>
+               <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, color: '#64748B' }}>
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#10B981' }} /> HITOS
+               </div>
+            </div>
           </div>
           
-          <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 0 }}>
+          <div style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: 0 }}>
             {unifiedTimeline.length === 0 ? (
-              <p style={{ color: '#64748B', fontSize: 13, textAlign: 'center', padding: 20 }}>No hay eventos registrados.</p>
+              <p style={{ color: '#64748B', fontSize: 13, textAlign: 'center', padding: 20 }}>No hay eventos registrados en la línea de tiempo.</p>
             ) : unifiedTimeline.map((ev, i) => (
-              <div key={i} style={{ display: 'flex', gap: 16, position: 'relative', paddingBottom: 24 }}>
+              <div key={i} style={{ display: 'flex', gap: 20, position: 'relative', paddingBottom: 32 }}>
                 {i !== unifiedTimeline.length - 1 && (
-                    <div style={{ position: 'absolute', top: 24, bottom: 0, left: 11, width: 2, backgroundColor: '#F1F5F9' }} />
+                    <div style={{ position: 'absolute', top: 32, bottom: 0, left: 15, width: 2, background: 'linear-gradient(to bottom, #E2E8F0, #F8FAFC)' }} />
                 )}
                 
-                <div style={{ width: 24, height: 24, borderRadius: '50%', backgroundColor: '#fff', border: `3px solid ${ev.color || '#E2E8F0'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2, zIndex: 1, boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-                  {ev.eventType === 'REPORT' ? <div style={{ width: 6, height: 6, borderRadius: '50%', background: ev.color }} /> : null}
+                <div style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: '#fff', border: `2px solid ${ev.color || '#E2E8F0'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, zIndex: 1, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
+                  {ev.eventType === 'REPORT' ? <CheckCircle2 size={16} color={ev.color} /> : <Clock size={16} color={ev.color} />}
                 </div>
 
-                <div style={{ background: ev.eventType === 'REPORT' ? '#F8FAFC' : 'transparent', padding: ev.eventType === 'REPORT' ? '12px 16px' : '0', borderRadius: 10, flex: 1, border: ev.eventType === 'REPORT' ? `1px solid ${ev.color}20` : 'none' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontSize: 11, color: '#64748B', fontWeight: 700 }}>{new Date(ev.date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
-                    {ev.eventType === 'REPORT' && <span style={{ fontSize: 9, fontWeight: 800, color: '#fff', background: ev.color, padding: '2px 6px', borderRadius: 4 }}>{ev.type}</span>}
+                <div style={{ background: ev.eventType === 'REPORT' ? '#F0FDF4' : '#fff', padding: '16px 20px', borderRadius: 12, flex: 1, border: `1px solid ${ev.eventType === 'REPORT' ? '#DCFCE7' : '#F1F5F9'}`, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <div style={{ fontSize: 12, color: ev.color, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Calendar size={12} />
+                      {new Date(ev.date).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}
+                    </div>
+                    {ev.eventType === 'REPORT' && (
+                      <span style={{ fontSize: 10, fontWeight: 800, color: '#fff', background: ev.color, padding: '3px 8px', borderRadius: 20, textTransform: 'uppercase' }}>
+                        {ev.type}
+                      </span>
+                    )}
                   </div>
 
-                  <div style={{ fontSize: 14, color: '#0F172A', fontWeight: 600, marginTop: 4 }}>
-                    {ev.eventType === 'REPORT' ? `Entrega Reporte: ${ev.cod}` : ev.description}
+                  <div style={{ fontSize: 15, color: '#1E293B', fontWeight: 700 }}>
+                    {ev.eventType === 'REPORT' ? `Entregable: ${ev.cod}` : ev.description}
                   </div>
                   
-                  {ev.eventType === 'TASK' && (
-                    <div style={{ fontSize: 12, color: '#378ADD', marginTop: 2, fontWeight: 500 }}>
-                      Dedicación: {ev.hours} h
-                    </div>
-                  )}
-                  {ev.eventType === 'REPORT' && (
-                    <div style={{ fontSize: 11, color: '#64748B', marginTop: 4 }}>
-                       Programado: {ev.prog} {ev.real !== '—' ? ` | Real: ${ev.real}` : ''}
-                    </div>
-                  )}
+                  <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 16 }}>
+                    {ev.eventType === 'TASK' && (
+                      <>
+                        <div style={{ fontSize: 12, color: '#64748B' }}>Dedicación: <strong style={{ color: '#0F172A' }}>{ev.hours} horas</strong></div>
+                        <div style={{ fontSize: 12, color: '#64748B' }}>Usuario: <strong style={{ color: '#0F172A' }}>{ev.user || 'Sistema'}</strong></div>
+                      </>
+                    )}
+                    {ev.eventType === 'REPORT' && (
+                      <Link to="/reportes" style={{ fontSize: 12, color: '#10B981', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        Ver Reporte Completo <ArrowLeft size={12} style={{ transform: 'rotate(180deg)' }} />
+                      </Link>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
