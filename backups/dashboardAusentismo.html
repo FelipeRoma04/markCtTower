@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard de Ausentismo</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --azul:    #2563EB; --azul-l:   #DBEAFE;
+    --naranja: #D97706; --naranja-l:#FEF3C7;
+    --verde:   #16A34A; --verde-l:  #D1FAE5;
+    --rojo:    #DC2626; --rojo-l:   #FEE2E2;
+    --oscuro:  #1E3A5F;
+    --gris1:   #F1F5F9; --gris2: #E2E8F0; --gris3: #94A3B8;
+    --texto:   #1E293B; --texto2: #475569; --texto3: #94A3B8;
+    --blanco:  #FFFFFF;
+    --sombra:  0 2px 12px rgba(0,0,0,.08);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #F0F4F8; color: var(--texto); }
+
+  .header {
+    background: var(--oscuro); padding: 14px 24px;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 12px rgba(0,0,0,.25);
+  }
+  .header h1 { font-size: 17px; font-weight: 700; color: #fff; letter-spacing: -.3px; }
+  .header p  { font-size: 12px; color: #94A3B8; margin-top: 2px; }
+  .header-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+  .btn { font-size: 12px; padding: 7px 16px; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; transition: filter .15s, transform .1s; white-space: nowrap; }
+  .btn:hover  { filter: brightness(1.1); }
+  .btn:active { transform: scale(.97); }
+  .btn-primary { background: var(--azul); color: #fff; }
+  .btn-ghost   { background: rgba(255,255,255,.12); color: #fff; border: 1px solid rgba(255,255,255,.25); }
+  .btn-ghost:hover { background: rgba(255,255,255,.22); }
+
+  .upload-wrap { padding: 40px 24px; max-width: 640px; margin: 0 auto; }
+  .upload-zone { border: 2px dashed var(--gris2); border-radius: 16px; padding: 48px 32px; text-align: center; cursor: pointer; background: var(--blanco); transition: all .2s; }
+  .upload-zone:hover { background: var(--gris1); border-color: var(--azul); box-shadow: 0 0 0 4px rgba(37,99,235,.08); }
+  .upload-zone .icon { font-size: 48px; margin-bottom: 12px; display: block; }
+  .upload-zone strong { font-size: 16px; color: var(--texto); display: block; margin-bottom: 6px; }
+  .upload-zone p { font-size: 13px; color: var(--texto2); line-height: 1.6; }
+  .cols-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 16px; }
+  .col-tag { background: var(--gris1); border: 1px solid var(--gris2); border-radius: 99px; font-size: 12px; color: var(--texto2); padding: 4px 12px; font-weight: 500; }
+  .sample-btn { margin-top: 16px; font-size: 13px; color: var(--azul); background: none; border: none; cursor: pointer; text-decoration: underline; font-weight: 500; }
+  #fileInput { display: none; }
+
+  .main { padding: 16px 20px; display: none; flex-direction: column; gap: 14px; }
+  .main.visible { display: flex; }
+
+  .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: var(--blanco); padding: 12px 16px; border-radius: 12px; border: 1px solid var(--gris2); box-shadow: var(--sombra); }
+  .toolbar label { font-size: 12px; color: var(--texto2); font-weight: 600; white-space: nowrap; }
+  .toolbar select { font-size: 13px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--gris2); background: var(--gris1); color: var(--texto); cursor: pointer; }
+  .divider { width: 1px; height: 26px; background: var(--gris2); flex-shrink: 0; }
+  .filter-group { display: flex; gap: 7px; flex-wrap: wrap; }
+  .ftag { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 6px 13px; border-radius: 99px; border: 1.5px solid transparent; cursor: pointer; font-weight: 600; transition: opacity .15s, transform .1s; user-select: none; white-space: nowrap; }
+  .ftag:hover  { transform: scale(1.04); }
+  .ftag:active { transform: scale(.97); }
+  .ftag.off    { opacity: .3; }
+  .ftag-dot    { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+  .stats-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+  .stat { background: var(--blanco); border-radius: 12px; padding: 14px 16px; border: 1px solid var(--gris2); box-shadow: var(--sombra); }
+  .stat-top   { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; }
+  .stat-badge { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
+  .stat-label { font-size: 11px; color: var(--texto2); font-weight: 500; }
+  .stat-value { font-size: 28px; font-weight: 700; color: var(--texto); line-height: 1; }
+  .stat-sub   { font-size: 11px; color: var(--texto3); margin-top: 4px; }
+
+  .cal-section { background: var(--blanco); border-radius: 14px; border: 1px solid var(--gris2); box-shadow: var(--sombra); padding: 18px; }
+  .cal-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .cal-top h2 { font-size: 15px; font-weight: 700; color: var(--texto); }
+  .cal-top p  { font-size: 12px; color: var(--texto2); }
+
+  .cal-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+
+  .month-card { border-radius: 12px; border: 1px solid var(--gris2); overflow: hidden; background: #FAFBFC; }
+  .month-hdr  { padding: 10px 14px; border-bottom: 1px solid var(--gris2); display: flex; justify-content: space-between; align-items: center; background: var(--blanco); }
+  .month-name { font-size: 13px; font-weight: 700; color: var(--texto); }
+  .month-count { font-size: 10px; font-weight: 600; color: var(--texto3); background: var(--gris1); padding: 2px 8px; border-radius: 99px; }
+
+  .day-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; padding: 8px; }
+  .day-name { font-size: 10px; color: var(--texto3); text-align: center; padding: 3px 0 4px; font-weight: 700; }
+  .day-cell  { position: relative; aspect-ratio: 1; border-radius: 5px; cursor: default; transition: transform .1s, box-shadow .1s; }
+  .day-cell:hover { transform: scale(1.22); z-index: 20; box-shadow: 0 4px 12px rgba(0,0,0,.15); }
+  .day-num   { font-size: 10px; color: var(--texto2); position: absolute; top: 2px; left: 3px; line-height: 1; pointer-events: none; font-weight: 500; }
+  .day-dots  { position: absolute; bottom: 2px; left: 1px; right: 1px; display: flex; flex-wrap: wrap; gap: 2px; justify-content: center; }
+  .dot       { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+  .empty-day { visibility: hidden; }
+  .today-cell { outline: 2.5px solid var(--azul); outline-offset: -1px; border-radius: 5px; }
+  .day-weekend { background: #C8D3E0 !important; }
+  .day-weekend .day-num { color: #475569; font-weight: 700; }
+  .day-holiday { background: #FCD34D !important; }
+  .day-holiday .day-num { color: #92400E; font-weight: 700; }
+  .day-weekend.day-holiday { background: #F0B429 !important; }
+  .holiday-star { position: absolute; top: 1px; right: 2px; font-size: 7px; line-height: 1; pointer-events: none; }
+
+  .tooltip {
+    position: fixed; background: var(--blanco); border: 1px solid var(--gris2);
+    border-radius: 12px; padding: 12px 15px; font-size: 12px; color: var(--texto);
+    pointer-events: none; z-index: 9999; max-width: 250px;
+    box-shadow: 0 8px 28px rgba(0,0,0,.18); display: none;
+  }
+  .tooltip-date { font-size: 13px; font-weight: 700; color: var(--texto); margin-bottom: 9px; padding-bottom: 8px; border-bottom: 1px solid var(--gris2); }
+  .tip-row   { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+  .tip-dot   { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .tip-name  { flex: 1; color: var(--texto); font-size: 12px; }
+  .tip-badge { font-size: 10px; padding: 2px 8px; border-radius: 5px; font-weight: 700; white-space: nowrap; }
+
+  .emp-legend { background: var(--blanco); border-radius: 12px; border: 1px solid var(--gris2); padding: 14px 18px; box-shadow: var(--sombra); }
+  .emp-legend h3  { font-size: 13px; font-weight: 700; color: var(--texto); margin-bottom: 12px; }
+  .emp-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .emp-chip  { display: flex; align-items: center; gap: 7px; font-size: 12px; background: var(--gris1); border-radius: 99px; padding: 5px 12px; border: 1px solid var(--gris2); color: var(--texto); font-weight: 500; }
+  .emp-dot   { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+  .footer { text-align: center; padding: 16px; font-size: 11px; color: var(--texto3); }
+
+  .drop-overlay { display: none; position: fixed; inset: 0; background: rgba(37,99,235,.12); border: 4px dashed var(--azul); z-index: 999; pointer-events: none; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; color: var(--azul); }
+  .drop-overlay.active { display: flex; }
+
+  @media (max-width: 1100px) { .cal-grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 780px)  { .cal-grid { grid-template-columns: repeat(2, 1fr); } .stats-row { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 480px)  { .cal-grid { grid-template-columns: 1fr; } .stats-row { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+
+<div class="drop-overlay" id="dropOverlay">📂 Suelta el archivo aquí</div>
+
+<div class="header">
+  <div>
+    <h1>📅 Dashboard de Ausentismo</h1>
+    <p id="headerSub">Carga tu archivo Excel para visualizar el almanaque</p>
+  </div>
+  <div class="header-right">
+    <button class="btn btn-ghost" onclick="document.getElementById('fileInput').click()">📂 Cargar Excel</button>
+    <button class="btn btn-ghost" onclick="showSample()">Ver ejemplo</button>
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" onchange="handleFile(this)">
+  </div>
+</div>
+
+<div class="upload-wrap" id="uploadWrap">
+  <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
+    <span class="icon">📊</span>
+    <strong>Arrastra tu archivo Excel aquí o haz clic para cargarlo</strong>
+    <p>El calendario se genera automáticamente con tus datos.<br>Compatible con Ausentismo_Plantilla.xlsx</p>
+    <div class="cols-row">
+      <span class="col-tag">Empleado</span>
+      <span class="col-tag">Tipo de Ausencia</span>
+      <span class="col-tag">Fecha Inicio</span>
+      <span class="col-tag">Fecha Fin</span>
+    </div>
+    <button class="sample-btn" onclick="event.stopPropagation(); showSample()">← Ver con datos de ejemplo</button>
+  </div>
+</div>
+
+<div class="main" id="mainDash">
+  <div class="toolbar">
+    <label>Año:</label>
+    <select id="yearSel" onchange="buildCalendar()"></select>
+    <div class="divider"></div>
+    <label>Empleado:</label>
+    <select id="empSel" onchange="buildCalendar()"></select>
+    <div class="divider"></div>
+    <label>Tipo:</label>
+    <div class="filter-group" id="filterTags"></div>
+  </div>
+
+  <div class="stats-row" id="statsRow"></div>
+
+  <div class="cal-section">
+    <div class="cal-top">
+      <h2>Almanaque mensual</h2>
+      <p id="calSubtitle"></p>
+    </div>
+    <div class="cal-grid" id="calGrid"></div>
+  </div>
+
+  <div class="emp-legend">
+    <h3>Colaboradores</h3>
+    <div class="emp-chips" id="empChips"></div>
+    <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--gris2);display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+      <span style="font-size:11px;color:var(--texto3);font-weight:600;">Referencia:</span>
+      <span style="display:flex;align-items:center;gap:6px;font-size:12px;background:#C8D3E0;border-radius:99px;padding:4px 12px;border:1px solid #b0bdd0;color:#475569;font-weight:600;">Fin de semana</span>
+      <span style="display:flex;align-items:center;gap:6px;font-size:12px;background:#FCD34D;border-radius:99px;padding:4px 12px;border:1px solid #f0b429;color:#92400E;font-weight:600;">★ Festivo</span>
+      <span style="display:flex;align-items:center;gap:6px;font-size:12px;background:#F0B429;border-radius:99px;padding:4px 12px;border:1px solid #d4900a;color:#78350F;font-weight:600;">★ Festivo + Fin de semana</span>
+    </div>
+  </div>
+</div>
+
+<div class="footer">Dashboard de Ausentismo · Carga tu Excel mes a mes para mantenerlo actualizado</div>
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+const TIPO_CFG = {
+  "Vacaciones":        { color:"#2563EB", light:"#DBEAFE" },
+  "Permiso":           { color:"#D97706", light:"#FEF3C7" },
+  "Día de la familia": { color:"#16A34A", light:"#D1FAE5" },
+  "Incapacidad":       { color:"#DC2626", light:"#FEE2E2" },
+};
+const EMP_PALETTE = [
+  "#7C3AED","#0891B2","#DB2777","#059669","#EA580C",
+  "#4F46E5","#0D9488","#9D174D","#1D4ED8","#B45309",
+  "#065F46","#831843","#1E3A5F","#78350F","#134E4A"
+];
+const MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio",
+               "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+const DAYS  = ["L","M","X","J","V","S","D"];
+
+/* ── Festivos Colombia ── */
+function calcEaster(y) {
+  const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,
+        f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),
+        h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,
+        l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451);
+  const mo=Math.floor((h+l-7*m+114)/31)-1, da=((h+l-7*m+114)%31)+1;
+  return new Date(y,mo,da);
+}
+function nextMonday(date) {
+  const d=new Date(date), day=d.getDay();
+  if(day===1)return d;
+  d.setDate(d.getDate()+(day===0?1:8-day));
+  return d;
+}
+function getColombianHolidays(year) {
+  const h=new Set();
+  const add=(mo,da)=>h.add(`${year}-${mo-1}-${da}`);
+  const addPuente=(date)=>{const nm=nextMonday(date);h.add(`${nm.getFullYear()}-${nm.getMonth()}-${nm.getDate()}`);};
+
+  // Fijos
+  add(1,1); add(5,1); add(7,20); add(8,7); add(12,8); add(12,25);
+
+  // Puentes (se mueven al lunes siguiente)
+  addPuente(new Date(year,0,6));   // Reyes Magos
+  addPuente(new Date(year,2,19));  // San José
+  addPuente(new Date(year,5,29));  // San Pedro y San Pablo
+  addPuente(new Date(year,7,15));  // Asunción
+  addPuente(new Date(year,9,12));  // Día de la Raza
+  addPuente(new Date(year,10,1));  // Todos los Santos
+  addPuente(new Date(year,10,11)); // Independencia de Cartagena
+
+  // Semana Santa y variables (basados en Pascua)
+  const easter=calcEaster(year);
+  const off=(n)=>{const d=new Date(easter);d.setDate(d.getDate()+n);return d;};
+  const addD=(d)=>h.add(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`);
+  addD(off(-3)); // Jueves Santo
+  addD(off(-2)); // Viernes Santo
+  addPuente(off(39));  // Ascensión
+  addPuente(off(60));  // Corpus Christi
+  addPuente(off(68));  // Sagrado Corazón
+
+  return h;
+}
+
+let allData=[], empColors={}, empList=[], activeTypes=new Set(Object.keys(TIPO_CFG));
+
+function normTipo(t) {
+  if (!t) return "Permiso";
+  const s = t.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+  if (s.includes("vac"))   return "Vacaciones";
+  if (s.includes("famil")) return "Día de la familia";
+  if (s.includes("incap")) return "Incapacidad";
+  return "Permiso";
+}
+
+function parseFecha(v) {
+  if (!v || v === "") return null;
+  if (v instanceof Date) return isNaN(v) ? null : v;
+  if (typeof v === "number") {
+    // Excel serial date → convertir en UTC y extraer componentes para evitar
+    // el desfase de zona horaria (ej. UTC-5 haría retroceder el día)
+    const utcMs = Math.round((v - 25569) * 86400 * 1000);
+    const tmp   = new Date(utcMs);
+    const d     = new Date(tmp.getUTCFullYear(), tmp.getUTCMonth(), tmp.getUTCDate());
+    return isNaN(d) ? null : d;
+  }
+  const str = String(v).trim();
+  if (!str) return null;
+  // DD/MM/YYYY o DD-MM-YYYY
+  const dmy = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+  if (dmy) return new Date(+dmy[3], +dmy[2]-1, +dmy[1]);
+  // YYYY-MM-DD
+  const ymd = str.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})/);
+  if (ymd) return new Date(+ymd[1], +ymd[2]-1, +ymd[3]);
+  const d = new Date(str);
+  return isNaN(d) ? null : d;
+}
+
+// Detecta la fila de encabezados automáticamente (salta títulos decorativos)
+function parseWorksheet(ws) {
+  const raw = XLSX.utils.sheet_to_json(ws, { header:1, defval:"" });
+
+  let headerRow = 0;
+  for (let i = 0; i < Math.min(raw.length, 10); i++) {
+    const row = raw[i].map(c => String(c).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,""));
+    const hasEmp   = row.some(c => c.includes("empleado") || c.includes("nombre") || c.includes("colaborador"));
+    const hasFecha = row.some(c => c.includes("fecha") || c.includes("inicio") || c.includes("start"));
+    if (hasEmp && hasFecha) { headerRow = i; break; }
+  }
+
+  const headers = raw[headerRow].map(c => String(c).trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,""));
+
+  function findCol(candidates) {
+    return headers.findIndex(h => candidates.some(c => h.includes(c)));
+  }
+
+  const iEmp  = findCol(["empleado","nombre","colaborador","trabajador","employee"]);
+  const iTipo = findCol(["tipo","ausencia","motivo","categoria","type"]);
+  const iIni  = findCol(["inicio","start","desde","fecha ini","fecha_ini","date_start"]);
+  const iFin  = findCol(["fin","end","hasta","fecha fin","fecha_fin","date_end"]);
+
+  const rows = [];
+  for (let i = headerRow + 1; i < raw.length; i++) {
+    const r    = raw[i];
+    const emp  = iEmp  >= 0 ? String(r[iEmp]  || "").trim() : "";
+    const tipo = iTipo >= 0 ? String(r[iTipo] || "").trim() : "";
+    const fi   = iIni  >= 0 ? parseFecha(r[iIni]) : null;
+    const ff   = iFin  >= 0 ? parseFecha(r[iFin]) : null;
+    if (!emp || !fi || !ff) continue;
+    rows.push({ empleado: emp, tipo: normTipo(tipo), fechaInicio: fi, fechaFin: ff });
+  }
+  return rows;
+}
+
+function handleFile(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const wb = XLSX.read(e.target.result, { type:"binary", cellDates:false });
+    const sheetName = wb.SheetNames.includes("Registros") ? "Registros" : wb.SheetNames[0];
+    const ws = wb.Sheets[sheetName];
+    allData = parseWorksheet(ws);
+    if (!allData.length) {
+      alert("No se encontraron registros con fechas válidas.\n\nRevisa que las columnas Empleado, Tipo de Ausencia, Fecha Inicio y Fecha Fin tengan datos completos.");
+      return;
+    }
+    setup();
+    document.getElementById("uploadWrap").style.display = "none";
+  };
+  reader.readAsBinaryString(file);
+}
+
+function showSample() {
+  const tipos = ["Vacaciones","Permiso","Día de la familia","Incapacidad"];
+  const emps  = ["Natalia Suarez","Lilian Conde","Samantta Torres","Andres Ramirez","Juan Vargas","Julian Lagos","Jonathan Penagos","Yhara Hernandez"];
+  const year  = new Date().getFullYear();
+  allData = [];
+  emps.forEach(emp => {
+    const n = Math.floor(Math.random()*3)+2;
+    for (let i=0;i<n;i++) {
+      const tipo = tipos[Math.floor(Math.random()*tipos.length)];
+      const mes  = Math.floor(Math.random()*12), dia=Math.floor(Math.random()*20)+1;
+      const dur  = tipo==="Vacaciones" ? Math.floor(Math.random()*9)+5 : Math.floor(Math.random()*3)+1;
+      allData.push({ empleado:emp, tipo, fechaInicio:new Date(year,mes,dia), fechaFin:new Date(year,mes,dia+dur-1) });
+    }
+  });
+  setup();
+  document.getElementById("uploadWrap").style.display = "none";
+}
+
+function setup() {
+  empList   = [...new Set(allData.map(r=>r.empleado))].sort();
+  empColors = {};
+  empList.forEach((e,i) => empColors[e] = EMP_PALETTE[i % EMP_PALETTE.length]);
+
+  const years = [...new Set(allData.map(r=>r.fechaInicio.getFullYear()))].sort();
+  const yearSel = document.getElementById("yearSel");
+  yearSel.innerHTML = years.map(y=>`<option>${y}</option>`).join("");
+  yearSel.value = years[years.length-1];
+
+  const empSel = document.getElementById("empSel");
+  empSel.innerHTML = ["Todos",...empList].map(e=>`<option value="${e}">${e}</option>`).join("");
+
+  buildFilterTags(); buildCalendar(); buildEmpLegend();
+  document.getElementById("mainDash").classList.add("visible");
+}
+
+function buildFilterTags() {
+  const c = document.getElementById("filterTags"); c.innerHTML = "";
+  Object.entries(TIPO_CFG).forEach(([key,cfg]) => {
+    const tag = document.createElement("div");
+    tag.className = "ftag"+(activeTypes.has(key)?"":" off");
+    tag.style.cssText = `background:${cfg.light};border-color:${cfg.color};color:${cfg.color}`;
+    tag.innerHTML = `<div class="ftag-dot" style="background:${cfg.color}"></div>${key}`;
+    tag.onclick = () => { activeTypes.has(key)?activeTypes.delete(key):activeTypes.add(key); buildFilterTags(); buildCalendar(); };
+    c.appendChild(tag);
+  });
+}
+
+function getAbsenceMap(year) {
+  const map={}, emp=document.getElementById("empSel").value;
+  allData
+    .filter(r=>r.fechaInicio.getFullYear()===year && activeTypes.has(r.tipo) && (emp==="Todos"||r.empleado===emp))
+    .forEach(r=>{
+      let d=new Date(r.fechaInicio);
+      while(d<=r.fechaFin){
+        const key=`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+        if(!map[key])map[key]=[];
+        map[key].push({ empleado:r.empleado, tipo:r.tipo, empColor:empColors[r.empleado]||"#888", tipoColor:TIPO_CFG[r.tipo]?.color||"#888", tipoLight:TIPO_CFG[r.tipo]?.light||"#eee" });
+        d.setDate(d.getDate()+1);
+      }
+    });
+  return map;
+}
+
+function buildCalendar() {
+  const year=parseInt(document.getElementById("yearSel").value);
+  if(!year||!allData.length)return;
+  const map=getAbsenceMap(year), today=new Date(), emp=document.getElementById("empSel").value;
+
+  document.getElementById("headerSub").textContent=`Año ${year} · ${emp==="Todos"?empList.length+" colaboradores":emp}`;
+  document.getElementById("calSubtitle").textContent=`${emp==="Todos"?"Todos los empleados":emp} · ${year}`;
+
+  const counts={}; Object.keys(TIPO_CFG).forEach(t=>counts[t]=0);
+  Object.values(map).forEach(arr=>arr.forEach(a=>{if(counts[a.tipo]!==undefined)counts[a.tipo]++;}));
+
+  document.getElementById("statsRow").innerHTML=
+    `<div class="stat"><div class="stat-top"><div class="stat-badge" style="background:var(--oscuro)"></div><span class="stat-label">Días con ausencia</span></div><div class="stat-value">${Object.keys(map).length}</div><div class="stat-sub">días únicos en el año</div></div>`+
+    Object.entries(TIPO_CFG).map(([k,c])=>
+      `<div class="stat"><div class="stat-top"><div class="stat-badge" style="background:${c.color}"></div><span class="stat-label">${k}</span></div><div class="stat-value">${counts[k]}</div><div class="stat-sub">días registrados</div></div>`
+    ).join("");
+
+  const grid=document.getElementById("calGrid"); grid.innerHTML="";
+  const holidays=getColombianHolidays(year);
+  for(let m=0;m<12;m++){
+    // Lunes como primer día: (getDay()+6)%7 → 0=Lun … 6=Dom
+    const firstDow=(new Date(year,m,1).getDay()+6)%7;
+    const daysInMonth=new Date(year,m+1,0).getDate();
+    let monthTotal=0;
+    for(let d=1;d<=daysInMonth;d++){if(map[`${year}-${m}-${d}`])monthTotal++;}
+    const card=document.createElement("div"); card.className="month-card";
+    let html=`<div class="month-hdr"><span class="month-name">${MESES[m]}</span>${monthTotal>0?`<span class="month-count">${monthTotal} día${monthTotal!==1?"s":""}</span>`:""}</div><div class="day-grid">`;
+    DAYS.forEach(d=>html+=`<div class="day-name">${d}</div>`);
+    for(let i=0;i<firstDow;i++)html+=`<div class="empty-day"></div>`;
+    for(let d=1;d<=daysInMonth;d++){
+      const key=`${year}-${m}-${d}`, absent=map[key]||[];
+      const dow=new Date(year,m,d).getDay(); // 0=Dom,6=Sab
+      const isWeekend=dow===0||dow===6;
+      const isHoliday=holidays.has(key);
+      const isToday=today.getFullYear()===year&&today.getMonth()===m&&today.getDate()===d;
+      let bg="transparent";
+      let extraClass="";
+      if(absent.length===1)bg=absent[0].tipoLight;
+      else if(absent.length>1)bg="rgba(148,163,184,.2)";
+      if(isHoliday)extraClass+=" day-holiday";
+      if(isWeekend)extraClass+=" day-weekend";
+      const ds=encodeURIComponent(JSON.stringify(absent.map(a=>({e:a.empleado,t:a.tipo,ec:a.empColor,tc:a.tipoColor,tl:a.tipoLight}))));
+      const holidayStar=isHoliday?`<div class="holiday-star">★</div>`:"";
+      html+=`<div class="day-cell${isToday?" today-cell":""}${extraClass}" style="background:${bg}" data-tip="${ds}" data-date="${MESES[m]} ${d}, ${year}${isHoliday?" 🇨🇴 Festivo":""}" onmouseenter="showTip(event,this)" onmouseleave="hideTip()"><div class="day-num">${d}</div>${holidayStar}<div class="day-dots">${absent.slice(0,9).map(a=>`<div class="dot" style="background:${a.empColor}"></div>`).join("")}</div></div>`;
+    }
+    html+="</div>"; card.innerHTML=html; grid.appendChild(card);
+  }
+}
+
+function buildEmpLegend(){
+  document.getElementById("empChips").innerHTML=empList.map(e=>`<div class="emp-chip"><div class="emp-dot" style="background:${empColors[e]}"></div>${e}</div>`).join("");
+}
+
+function showTip(e,el){
+  const absent=JSON.parse(decodeURIComponent(el.dataset.tip));
+  if(!absent.length)return;
+  const tip=document.getElementById("tooltip");
+  tip.innerHTML=`<div class="tooltip-date">${el.dataset.date}</div>`+absent.map(a=>`<div class="tip-row"><div class="tip-dot" style="background:${a.ec}"></div><span class="tip-name">${a.e}</span><span class="tip-badge" style="background:${a.tl};color:${a.tc}">${a.t}</span></div>`).join("");
+  tip.style.display="block";
+  const rect=el.getBoundingClientRect();
+  let left=rect.left+window.scrollX, top=rect.bottom+window.scrollY+8;
+  if(left+260>window.innerWidth)left=window.innerWidth-264;
+  tip.style.left=left+"px"; tip.style.top=top+"px";
+}
+function hideTip(){document.getElementById("tooltip").style.display="none";}
+
+document.body.addEventListener("dragenter",e=>{e.preventDefault();document.getElementById("dropOverlay").classList.add("active");});
+document.body.addEventListener("dragleave",e=>{if(!e.relatedTarget)document.getElementById("dropOverlay").classList.remove("active");});
+document.body.addEventListener("dragover",e=>e.preventDefault());
+document.body.addEventListener("drop",e=>{
+  e.preventDefault(); document.getElementById("dropOverlay").classList.remove("active");
+  const file=e.dataTransfer.files[0];
+  if(file){const dt=new DataTransfer();dt.items.add(file);document.getElementById("fileInput").files=dt.files;handleFile(document.getElementById("fileInput"));}
+});
+</script>
+</body>
+</html>

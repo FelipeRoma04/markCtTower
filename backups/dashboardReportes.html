@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Entregas de Reportes — LAA 2026</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+:root{
+  --bg:#F2F0EB; --surface:#FFFFFF; --surface2:#EBEBEA;
+  --text:#1A1A19; --text2:#6B6B67; --text3:#A0A09C;
+  --border:rgba(0,0,0,0.10); --border2:rgba(0,0,0,0.06);
+  --green-bg:#EAF3DE; --green-text:#27500A; --green-mid:#639922;
+  --amber-bg:#FAEEDA; --amber-text:#854F0B; --amber-mid:#EF9F27;
+  --blue-bg:#E6F1FB; --blue-text:#0C447C; --blue-mid:#185FA5;
+  --gray-bg:#EBEBEA; --gray-text:#5F5E5A;
+  --radius:10px; --radius-sm:6px;
+  --font:'DM Sans',sans-serif; --mono:'DM Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;min-height:100vh}
+.page{max-width:1300px;margin:0 auto;padding:28px 24px}
+.header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:24px;flex-wrap:wrap}
+.header h1{font-size:22px;font-weight:600;letter-spacing:-.4px}
+.header p{font-size:13px;color:var(--text2);margin-top:3px}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:500;padding:3px 10px;border-radius:20px;border:1px solid var(--border);color:var(--text2);background:var(--surface);white-space:nowrap}
+.chip .dot{width:6px;height:6px;border-radius:50%;background:#639922}
+.upload-zone{border:1.5px dashed var(--border);border-radius:var(--radius);padding:22px;text-align:center;cursor:pointer;transition:.2s;background:var(--surface);margin-bottom:20px}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--blue-mid);background:var(--blue-bg)}
+.upload-zone input{display:none}
+.upload-icon{font-size:24px;margin-bottom:5px}
+.upload-zone p{font-size:13px;color:var(--text2)}
+.upload-zone strong{color:var(--text);font-weight:500}
+.upload-status{display:none;align-items:center;gap:8px;font-size:13px;margin-bottom:16px;padding:8px 14px;border-radius:var(--radius-sm);background:var(--green-bg);color:var(--green-text);border:1px solid #C0DD97}
+.upload-status.show{display:flex}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.kpi{background:var(--surface2);border-radius:var(--radius);padding:16px}
+.kpi-label{font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.07em;font-weight:500;margin-bottom:6px}
+.kpi-val{font-size:30px;font-weight:600;letter-spacing:-1px;font-family:var(--mono)}
+.kpi-sub{font-size:11px;color:var(--text3);margin-top:3px}
+.two-col{display:grid;grid-template-columns:230px 1fr;gap:16px;margin-bottom:20px;align-items:start}
+.card{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);padding:18px}
+.donut-wrap{position:relative;width:150px;height:150px;margin:8px auto 14px}
+.legend-item{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:7px}
+.legend-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.legend-meta{font-size:11px;color:var(--text3);margin-top:10px;border-top:1px solid var(--border2);padding-top:8px}
+.cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.cal-title{font-size:14px;font-weight:500}
+.cal-nav{display:flex;gap:5px}
+.cal-btn{border:1px solid var(--border);background:var(--surface);border-radius:var(--radius-sm);width:26px;height:26px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;color:var(--text2)}
+.cal-btn:hover{background:var(--surface2)}
+.cal-legend{display:flex;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+.cal-legend span{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text2)}
+.cal-legend i{display:inline-block;width:9px;height:9px;border-radius:2px;flex-shrink:0}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.cal-dow{text-align:center;font-size:10px;color:var(--text3);padding:3px 0;font-weight:500}
+.cal-day{min-height:60px;border-radius:5px;padding:3px 4px;background:var(--bg);border:1px solid transparent}
+.cal-day.other{opacity:.2}
+.cal-day.today{border-color:var(--blue-mid);background:var(--surface)}
+.cal-day-num{font-size:10px;color:var(--text3);margin-bottom:1px}
+.cal-day.today .cal-day-num{color:var(--blue-mid);font-weight:600}
+.ev{font-size:9px;border-radius:3px;padding:1px 3px;margin-top:1px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:default;line-height:1.4}
+.ev-prog-rpt{background:#fff3cd;color:#7B5800;border-left:2px solid #EF9F27}
+.ev-prog-inf{background:#f0e8fd;color:#3C3489;border-left:2px solid #7F77DD}
+.ev-real-rpt{background:var(--green-bg);color:var(--green-text)}
+.ev-real-inf{background:var(--blue-bg);color:var(--blue-text)}
+.tbl-controls{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+.tbl-title{font-size:13px;font-weight:500;color:var(--text2)}
+.filters{display:flex;gap:5px}
+.fbtn{padding:3px 12px;border-radius:20px;border:1px solid var(--border);background:transparent;font-size:12px;cursor:pointer;color:var(--text);font-family:var(--font)}
+.fbtn.active,.fbtn:hover{background:var(--surface2);border-color:rgba(0,0,0,.2)}
+.tbl-wrap{overflow-x:auto;border-radius:var(--radius);border:1px solid var(--border2);background:var(--surface)}
+table{width:100%;border-collapse:collapse;font-size:12px;min-width:1000px}
+th{background:var(--surface2);color:var(--text2);font-weight:500;padding:8px 10px;text-align:left;border-bottom:1px solid var(--border2);white-space:nowrap;font-size:10px;text-transform:uppercase;letter-spacing:.05em}
+td{padding:7px 10px;border-bottom:1px solid var(--border2);vertical-align:middle;color:var(--text)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--bg)}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;white-space:nowrap}
+.badge-ok{background:var(--green-bg);color:var(--green-text)}
+.badge-proc{background:var(--amber-bg);color:var(--amber-text)}
+.bar-wrap{margin-top:2px;height:4px;background:var(--border2);border-radius:2px;overflow:hidden;width:64px}
+.bar-fill{height:100%;border-radius:2px}
+.mono{font-family:var(--mono);font-size:11px}
+.date-prog{font-size:10px;color:var(--text3)}
+.date-real{font-size:11px;font-family:var(--mono);color:var(--green-text);font-weight:500}
+.empty{text-align:center;padding:40px 20px;color:var(--text3)}
+footer{font-size:11px;color:var(--text3);text-align:right;margin-top:18px}
+@media(max-width:700px){.kpis{grid-template-columns:repeat(2,1fr)}.two-col{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="header">
+    <div>
+      <h1>Dashboard — Entregas de Reportes</h1>
+      <p>Laboratorio de Análisis Ambiental (LAA) · Arrastra el Excel para actualizar</p>
+    </div>
+    <div id="fileChip" class="chip" style="display:none"><span class="dot"></span><span id="chipName"></span></div>
+  </div>
+
+  <div class="upload-zone" id="dropZone"
+       onclick="document.getElementById('fileInput').click()"
+       ondragover="event.preventDefault();this.classList.add('drag')"
+       ondragleave="this.classList.remove('drag')"
+       ondrop="handleDrop(event)">
+    <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="handleFile(this.files[0])">
+    <div class="upload-icon">📂</div>
+    <p><strong>Arrastra el archivo Excel aquí</strong> o haz clic para seleccionar</p>
+    <p style="margin-top:3px;font-size:12px">Compatible con SA-OP-LAA-TEC-FOR.5.3 · Hoja REPORTES</p>
+  </div>
+
+  <div class="upload-status" id="uploadStatus"><span>✅</span><span id="statusMsg"></span></div>
+
+  <div class="kpis">
+    <div class="kpi"><div class="kpi-label">Total reportes</div><div class="kpi-val mono" id="kTotal" style="color:var(--blue-mid)">—</div><div class="kpi-sub">reportes únicos</div></div>
+    <div class="kpi"><div class="kpi-label">Entregados</div><div class="kpi-val mono" id="kOk" style="color:var(--green-mid)">—</div><div class="kpi-sub" id="kOkPct">con entrega real registrada</div></div>
+    <div class="kpi"><div class="kpi-label">En proceso</div><div class="kpi-val mono" id="kProc" style="color:var(--amber-mid)">—</div><div class="kpi-sub" id="kProcPct">pendiente de entrega</div></div>
+    <div class="kpi"><div class="kpi-label">Promedio días entrega</div><div class="kpi-val mono" id="kDays">—</div><div class="kpi-sub">recepción → entrega real</div></div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:2px">Estado general</div>
+      <div class="donut-wrap"><canvas id="donut"></canvas></div>
+      <div id="legend"><div class="empty" style="padding:8px 0"><p style="font-size:12px">Carga el Excel</p></div></div>
+      <div class="legend-meta" id="legendMeta"></div>
+    </div>
+    <div class="card">
+      <div class="cal-legend">
+        <span><i style="background:#fff3cd;border-left:3px solid #EF9F27"></i>Prog. reporte</span>
+        <span><i style="background:var(--green-bg);border:1px solid #C0DD97"></i>Entrega real reporte</span>
+        <span><i style="background:#f0e8fd;border-left:3px solid #7F77DD"></i>Prog. informe</span>
+        <span><i style="background:var(--blue-bg);border:1px solid #B5D4F4"></i>Entrega real informe</span>
+      </div>
+      <div class="cal-header">
+        <div class="cal-title" id="calLabel">— ----</div>
+        <div class="cal-nav">
+          <button class="cal-btn" id="prevM">‹</button>
+          <button class="cal-btn" id="nextM">›</button>
+        </div>
+      </div>
+      <div class="cal-grid" id="calDow"></div>
+      <div style="height:3px"></div>
+      <div class="cal-grid" id="calGrid"></div>
+    </div>
+  </div>
+
+  <div class="tbl-controls">
+    <div class="tbl-title">Detalle por reporte</div>
+    <div class="filters">
+      <button class="fbtn active" onclick="setFilter('all',this)">Todos</button>
+      <button class="fbtn" onclick="setFilter('entregado',this)">Entregados</button>
+      <button class="fbtn" onclick="setFilter('proceso',this)">En proceso</button>
+    </div>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr>
+        <th>Código reporte</th><th>Cliente</th><th>Muestras</th>
+        <th>Recepción</th><th>Ing. subcontrat.</th><th>Entrega subcontrat.→LAA</th>
+        <th>Fecha prog. reporte</th><th>Entrega real reporte</th>
+        <th>Fecha prog. informe</th><th>Entrega real informe</th>
+        <th>Días</th><th>Estado</th>
+      </tr></thead>
+      <tbody id="tbody">
+        <tr><td colspan="12"><div class="empty"><p>Carga el archivo Excel para ver los datos</p></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <footer id="footer"></footer>
+</div>
+
+<script>
+// ── Column map (SA-OP-LAA-TEC-FOR.5.3 v4, hoja REPORTES, filas desde índice 6) ──
+// 0  Código muestra      1  Cliente           4  Fecha recepción
+// 5  Ing. SGI            6  Ing. CHEMILAB      7  Ing. AIRWA
+// 8  Código reporte      9  Ent. SGI→LAA      10  Ent. CHEM→LAA    11  Ent. AIRWA→LAA
+// 12 FECHA PROGRAMADA reporte cliente   ← deadline
+// 13 FECHA ENTREGA REAL reporte cliente ← si tiene valor = ENTREGADO
+// 14 FECHA PROGRAMADA informe cliente
+// 15 FECHA ENTREGA REAL informe cliente
+
+let enriched=[], donutChart=null, calY, calM, eventMap={};
+const TODAY=new Date(); TODAY.setHours(0,0,0,0);
+const TODAYSTR=isoStr(TODAY);
+
+function excelDateToISO(v){
+  if(v===null||v===undefined||v===''||v===0) return null;
+  if(v instanceof Date){if(isNaN(v))return null;return isoStr(v);}
+  if(typeof v==='string'){const t=v.trim();if(/^\d{4}-\d{2}-\d{2}/.test(t))return t.slice(0,10);return null;}
+  if(typeof v==='number'&&v>1000) return isoStr(new Date(Math.round((v-25569)*86400000)));
+  return null;
+}
+function isoStr(d){
+  const dt=new Date(d);if(isNaN(dt))return null;
+  return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+}
+function fmtD(iso){if(!iso)return'—';const[y,m,d]=iso.split('-');return`${d}/${m}/${y}`;}
+function fmtLong(iso){
+  if(!iso)return'—';
+  const MS=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const[y,m,d]=iso.split('-');return`${parseInt(d)} de ${MS[parseInt(m)-1]} de ${y}`;
+}
+function daysDiff(a,b){if(!a||!b)return null;return Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/864e5);}
+
+function handleDrop(ev){
+  ev.preventDefault();document.getElementById('dropZone').classList.remove('drag');
+  const f=ev.dataTransfer.files[0];if(f)handleFile(f);
+}
+function handleFile(file){
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
+      const ws=wb.Sheets['REPORTES'];
+      if(!ws){alert('No se encontró la hoja "REPORTES".');return;}
+      processData(XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null}),file.name);
+    }catch(err){alert('Error: '+err.message);}
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function processData(raw,filename){
+  const map={};
+  for(let i=6;i<raw.length;i++){
+    const row=raw[i];
+    const muestra=row[0];
+    if(!muestra||typeof muestra!=='string'||!/^[A-Z]{2}\d+/.test(muestra.trim()))continue;
+    const cod=row[8]?String(row[8]).trim():null;
+    if(!cod||cod==='0')continue;
+    const earlier=(a,b)=>(!a?b:!b?a:a<b?a:b);
+    const later=(a,b)=>(!a?b:!b?a:a>b?a:b);
+    const r={
+      recv:excelDateToISO(row[4]),
+      ingSGI:excelDateToISO(row[5]),ingCHEM:excelDateToISO(row[6]),ingAIR:excelDateToISO(row[7]),
+      entSGI:excelDateToISO(row[9]),entCHEM:excelDateToISO(row[10]),entAIR:excelDateToISO(row[11]),
+      rptProg:excelDateToISO(row[12]),
+      rptReal:excelDateToISO(row[13]),  // ← ENTREGA REAL → determina estado
+      infProg:excelDateToISO(row[14]),
+      infReal:excelDateToISO(row[15]),
+    };
+    if(!map[cod]){
+      map[cod]={cod,cliente:row[1]?String(row[1]).trim():'—',muestras:[muestra.trim()],...r};
+    }else{
+      const x=map[cod];
+      x.recv=earlier(x.recv,r.recv);
+      x.ingSGI=x.ingSGI||r.ingSGI; x.ingCHEM=x.ingCHEM||r.ingCHEM; x.ingAIR=x.ingAIR||r.ingAIR;
+      x.entSGI=later(x.entSGI,r.entSGI); x.entCHEM=later(x.entCHEM,r.entCHEM); x.entAIR=later(x.entAIR,r.entAIR);
+      x.rptProg=x.rptProg||r.rptProg; x.rptReal=x.rptReal||r.rptReal;
+      x.infProg=x.infProg||r.infProg; x.infReal=x.infReal||r.infReal;
+      x.muestras.push(muestra.trim());
+    }
+  }
+  enriched=Object.values(map).map(r=>{
+    r.muestras=[...new Set(r.muestras)];
+    r.status=r.rptReal?'entregado':'proceso';
+    r.dias=r.status==='entregado'?daysDiff(r.recv,r.rptReal):daysDiff(r.recv,r.rptProg);
+    return r;
+  });
+  buildEventMap();
+  const upcoming=enriched.filter(r=>r.rptProg&&r.status==='proceso').sort((a,b)=>a.rptProg.localeCompare(b.rptProg));
+  if(upcoming.length){const d=new Date(upcoming[0].rptProg+'T00:00:00');calY=d.getFullYear();calM=d.getMonth();}
+  else{calY=TODAY.getFullYear();calM=TODAY.getMonth();}
+  updateKPIs();updateDonut();renderCal();renderTable();
+  document.getElementById('statusMsg').textContent=`${filename} — ${enriched.length} reportes cargados`;
+  document.getElementById('uploadStatus').classList.add('show');
+  document.getElementById('fileChip').style.display='inline-flex';
+  document.getElementById('chipName').textContent=filename;
+  document.getElementById('footer').textContent=`Fuente: ${filename} · Procesado: ${new Date().toLocaleString('es-CO')}`;
+}
+
+function updateKPIs(){
+  const total=enriched.length,nOk=enriched.filter(r=>r.status==='entregado').length,nProc=total-nOk;
+  const dias=enriched.filter(r=>r.status==='entregado'&&r.dias!==null).map(r=>r.dias);
+  const avgD=dias.length?Math.round(dias.reduce((a,b)=>a+b,0)/dias.length):0;
+  document.getElementById('kTotal').textContent=total;
+  document.getElementById('kOk').textContent=nOk;
+  document.getElementById('kOkPct').textContent=total?Math.round(nOk/total*100)+'% del total':'—';
+  document.getElementById('kProc').textContent=nProc;
+  document.getElementById('kProcPct').textContent=total?Math.round(nProc/total*100)+'% del total':'—';
+  document.getElementById('kDays').textContent=avgD?avgD+' días':'—';
+}
+
+function updateDonut(){
+  const nOk=enriched.filter(r=>r.status==='entregado').length,total=enriched.length,nProc=total-nOk;
+  if(donutChart)donutChart.destroy();
+  donutChart=new Chart(document.getElementById('donut'),{
+    type:'doughnut',
+    data:{labels:['Entregados','En proceso'],datasets:[{data:[nOk,nProc],backgroundColor:['#639922','#EF9F27'],borderWidth:0,hoverOffset:4}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'74%',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+c.label+': '+c.parsed}}}}
+  });
+  document.getElementById('legend').innerHTML=`
+    <div class="legend-item"><div class="legend-dot" style="background:#639922"></div><span>Entregados <strong>${nOk}</strong> <span style="color:var(--text3)">(${Math.round(nOk/total*100)}%)</span></span></div>
+    <div class="legend-item"><div class="legend-dot" style="background:#EF9F27"></div><span>En proceso <strong>${nProc}</strong> <span style="color:var(--text3)">(${Math.round(nProc/total*100)}%)</span></span></div>`;
+  document.getElementById('legendMeta').innerHTML=`Total: <strong>${total}</strong> reportes · Corte: ${fmtD(TODAYSTR)}`;
+}
+
+function buildEventMap(){
+  eventMap={};
+  const add=(key,obj)=>{if(!key)return;if(!eventMap[key])eventMap[key]=[];eventMap[key].push(obj);};
+  enriched.forEach(r=>{
+    add(r.rptProg,{type:'prog-rpt',r});
+    add(r.rptReal,{type:'real-rpt',r});
+    add(r.infProg,{type:'prog-inf',r});
+    add(r.infReal,{type:'real-inf',r});
+  });
+}
+
+const MONTHS=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const DOWS=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+const toKey=(y,m,d)=>`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+
+function renderCal(){
+  document.getElementById('calLabel').textContent=MONTHS[calM]+' '+calY;
+  document.getElementById('calDow').innerHTML=DOWS.map(d=>`<div class="cal-dow">${d}</div>`).join('');
+  const first=new Date(calY,calM,1),startDow=(first.getDay()+6)%7;
+  const dim=new Date(calY,calM+1,0).getDate(),dip=new Date(calY,calM,0).getDate();
+  let cells=[];
+  for(let i=startDow-1;i>=0;i--)cells.push({d:dip-i,cur:false});
+  for(let i=1;i<=dim;i++)cells.push({d:i,cur:true});
+  while(cells.length%7!==0)cells.push({d:cells.length-dim-startDow+1,cur:false});
+  document.getElementById('calGrid').innerHTML=cells.map(c=>{
+    if(!c.cur)return`<div class="cal-day other"><div class="cal-day-num">${c.d}</div></div>`;
+    const key=toKey(calY,calM,c.d),isToday=key===TODAYSTR;
+    const evts=eventMap[key]||[],seen=new Set();
+    const evHtml=evts.filter(e=>{const k=e.r.cod+e.type;if(seen.has(k))return false;seen.add(k);return true;}).map(e=>{
+      const cls=e.type==='prog-rpt'?'ev-prog-rpt':e.type==='real-rpt'?'ev-real-rpt':e.type==='prog-inf'?'ev-prog-inf':'ev-real-inf';
+      const pfx=e.type.startsWith('real')?'✓':'⏰';
+      const tl=e.type==='prog-rpt'?'Prog. reporte':e.type==='real-rpt'?'Entrega reporte':e.type==='prog-inf'?'Prog. informe':'Entrega informe';
+      return`<div class="ev ${cls}" title="${e.r.cod}\n${tl}: ${fmtLong(key)}\nCliente: ${e.r.cliente}">${pfx} ${e.r.cod}</div>`;
+    }).join('');
+    return`<div class="cal-day${isToday?' today':''}"><div class="cal-day-num">${c.d}</div>${evHtml}</div>`;
+  }).join('');
+}
+document.getElementById('prevM').onclick=()=>{calM--;if(calM<0){calM=11;calY--;}renderCal();};
+document.getElementById('nextM').onclick=()=>{calM++;if(calM>11){calM=0;calY++;}renderCal();};
+
+let currentFilter='all';
+function setFilter(f,btn){
+  currentFilter=f;document.querySelectorAll('.fbtn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderTable();
+}
+function renderTable(){
+  const rows=enriched.filter(r=>currentFilter==='all'||r.status===currentFilter);
+  if(!rows.length){document.getElementById('tbody').innerHTML=`<tr><td colspan="12"><div class="empty"><p>${enriched.length?'Sin resultados':'Carga el archivo Excel'}</p></div></td></tr>`;return;}
+  const maxD=Math.max(...enriched.map(r=>r.dias||0),1);
+  const bI=r=>[r.ingSGI,r.ingCHEM,r.ingAIR].filter(Boolean).sort()[0]||null;
+  const bE=r=>[r.entSGI,r.entCHEM,r.entAIR].filter(Boolean).sort().reverse()[0]||null;
+  const lI=r=>[r.ingSGI?'SGI':'',r.ingCHEM?'CHEM':'',r.ingAIR?'AIRWA':''].filter(Boolean).join(', ');
+  const lE=r=>[r.entSGI?'SGI':'',r.entCHEM?'CHEM':'',r.entAIR?'AIRWA':''].filter(Boolean).join(', ');
+  document.getElementById('tbody').innerHTML=rows.map(r=>{
+    const st=r.status==='entregado'?'<span class="badge badge-ok">Entregado</span>':'<span class="badge badge-proc">En proceso</span>';
+    const ing=bI(r),ent=bE(r);
+    const dc=r.dias===null?'#aaa':r.dias<=20?'#3B6D11':r.dias<=35?'#BA7517':'#E24B4A';
+    const bw=r.dias?Math.min(100,Math.round(r.dias/maxD*100)):0;
+    const diasCell=r.dias!==null?`<div class="mono" style="color:${dc};font-weight:500">${r.dias}d</div><div class="bar-wrap"><div class="bar-fill" style="width:${bw}%;background:${dc};opacity:.6"></div></div>`:'—';
+    const ms=r.muestras.length<=2?r.muestras.join(', '):r.muestras.slice(0,2).join(', ')+` <span style="color:var(--text3)">+${r.muestras.length-2}</span>`;
+    const ingC=ing?`<span class="mono">${fmtD(ing)}</span><br><span style="font-size:10px;color:var(--text3)">${lI(r)}</span>`:'—';
+    const entC=ent?`<span class="mono">${fmtD(ent)}</span><br><span style="font-size:10px;color:var(--text3)">${lE(r)}</span>`:'—';
+    const rptProgC=`<span class="date-prog">${r.rptProg?fmtD(r.rptProg):'—'}</span>`;
+    const rptRealC=r.rptReal?`<span class="date-real">✓ ${fmtD(r.rptReal)}</span>`:`<span style="color:var(--text3);font-size:11px">Pendiente</span>`;
+    const infProgC=`<span class="date-prog">${r.infProg?fmtD(r.infProg):'—'}</span>`;
+    const infRealC=r.infReal?`<span class="date-real">✓ ${fmtD(r.infReal)}</span>`:`<span style="color:var(--text3);font-size:11px">Pendiente</span>`;
+    return`<tr>
+      <td><span class="mono" style="font-weight:500">${r.cod}</span></td>
+      <td>${r.cliente}</td>
+      <td style="color:var(--text2);font-size:11px">${ms}</td>
+      <td class="mono">${fmtD(r.recv)}</td>
+      <td>${ingC}</td><td>${entC}</td>
+      <td>${rptProgC}</td><td>${rptRealC}</td>
+      <td>${infProgC}</td><td>${infRealC}</td>
+      <td>${diasCell}</td><td>${st}</td>
+    </tr>`;
+  }).join('');
+}
+
+calY=TODAY.getFullYear();calM=TODAY.getMonth();renderCal();
+</script>
+</body>
+</html>

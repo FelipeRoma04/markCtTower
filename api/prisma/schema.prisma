@@ -1,0 +1,47 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  name      String
+  role      String   @default("CONSULTOR")
+  hourlyRate Float   @default(0.0)
+  tasks     Task[]
+}
+
+model Client {
+  id        Int       @id @default(autoincrement())
+  name      String
+  email     String?
+  phone     String?
+  projects  Project[]
+}
+
+model Project {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
+  name        String
+  clientId    Int
+  client      Client   @relation(fields: [clientId], references: [id])
+  status      String   @default("EN PROCESO")
+  budgetMs    Float    @default(0.0)
+  budgetHours Float    @default(0.0)
+  tasks       Task[]
+}
+
+model Task {
+  id          Int      @id @default(autoincrement())
+  description String
+  projectId   Int
+  project     Project  @relation(fields: [projectId], references: [id])
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  date        DateTime @default(now())
+  hours       Float
+}
